@@ -1,0 +1,141 @@
+name: bt03-ukiyoe
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bt03
+      POSTGRES_DB: bt03
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - bt03_postgres:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:55433:5432"
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U bt03 -d bt03"]
+      interval: 10s
+      retries: 5
+    restart: unless-stopped
+    networks: [bt03_internal]
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server","--appendonly","yes","--maxmemory","256mb","--maxmemory-policy","noeviction"]
+    volumes:
+      - bt03_redis:/data
+    ports:
+      - "127.0.0.1:56379:6379"
+    healthcheck:
+      test: ["CMD","redis-cli","ping"]
+      interval: 10s
+      retries: 5
+    restart: unless-stopped
+    networks: [bt03_internal]
+  migrate:
+    build: {context: ., dockerfile: infrastructure/docker/Dockerfile, target: app}
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://bt03:${POSTGRES_PASSWORD}@db:5432/bt03?schema=public
+    command: ["sh","-c","npm run db:migrate && npm run db:seed"]
+    depends_on:
+      db: {condition: service_healthy}
+    restart: "no"
+    networks: [bt03_internal]
+  api:
+    build: {context: ., dockerfile: infrastructure/docker/Dockerfile, target: app}
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://bt03:${POSTGRES_PASSWORD}@db:5432/bt03?schema=public
+      REDIS_URL: redis://redis:6379
+      IMAGE_ROOT: /app/storage/images
+    command: ["node","apps/api/dist/index.js"]
+    volumes:
+      - ./storage/images:/app/storage/images
+    ports:
+      - "127.0.0.1:3101:3101"
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    restart: unless-stopped
+    networks: [bt03_internal]
+  web:
+    build: {context: ., dockerfile: infrastructure/docker/Dockerfile, target: app}
+    environment:
+      INTERNAL_API_URL: http://api:3101
+    command: ["npm","run","start","-w","@bt03/web"]
+    ports:
+      - "3100:3100"
+    depends_on: [api]
+    restart: unless-stopped
+    networks: [bt03_internal]
+  worker-11:
+    build: {context: ., dockerfile: infrastructure/docker/Dockerfile, target: worker}
+    cpus: 4.0
+    mem_limit: 4.5g
+    memswap_limit: 5g
+    env_file: .env
+    environment: &worker_env
+      DATABASE_URL: postgresql://bt03:${POSTGRES_PASSWORD}@db:5432/bt03?schema=public
+      REDIS_URL: redis://redis:6379
+      FASTSD_PATH: "/home/giabaovip/AI Gen Image/fastsdcpu"
+      IMAGE_ROOT: /app/storage/images
+      STYLE_LORA: "/home/giabaovip/AI Gen Image/fastsdcpu/lora_models/hokusai_ukiyoe.safetensors"
+      HF_HOME: /home/giabaovip/.cache/huggingface
+      WORKER_ID: "1.1"
+    command: ["node","services/ai-worker/dist/index.js"]
+    volumes: &worker_volumes
+      - ./storage/images:/app/storage/images
+      - ../fastsdcpu:/home/giabaovip/AI Gen Image/fastsdcpu:ro
+      - /home/giabaovip/.local/share/uv/python:/home/giabaovip/.local/share/uv/python:ro
+      - /home/giabaovip/.cache/huggingface:/home/giabaovip/.cache/huggingface:ro
+      - ./configs/models/checkpoints:/models:ro
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    restart: unless-stopped
+    networks: [bt03_internal]
+  worker-12:
+    profiles: [local-second-worker]
+    build: {context: ., dockerfile: infrastructure/docker/Dockerfile, target: worker}
+    cpus: 4.0
+    mem_limit: 4.5g
+    memswap_limit: 5g
+    env_file: .env
+    environment:
+      <<: *worker_env
+      WORKER_ID: "1.2"
+    command: ["node","services/ai-worker/dist/index.js"]
+    volumes: *worker_volumes
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    restart: unless-stopped
+    networks: [bt03_internal]
+  scheduler:
+    build: {context: ., dockerfile: infrastructure/docker/Dockerfile, target: app}
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://bt03:${POSTGRES_PASSWORD}@db:5432/bt03?schema=public
+      REDIS_URL: redis://redis:6379
+    command: ["node","services/ai-scheduler/dist/index.js"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    restart: unless-stopped
+    networks: [bt03_internal]
+  kuma:
+    image: louislam/uptime-kuma:1
+    volumes:
+      - bt03_kuma:/app/data
+    ports:
+      - "127.0.0.1:3301:3001"
+    restart: unless-stopped
+    networks: [bt03_internal]
+volumes:
+  bt03_postgres:
+    name: bt03_ukiyoe_postgres
+  bt03_redis:
+    name: bt03_ukiyoe_redis
+  bt03_kuma:
+    name: bt03_ukiyoe_kuma
+networks:
+  bt03_internal:
+    name: bt03_ukiyoe_internal

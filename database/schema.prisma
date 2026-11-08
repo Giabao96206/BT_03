@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+
+model Member {
+  id String @id
+  name String
+  workers AiWorker[]
+}
+model AiModel {
+  id String @id
+  checkpoint String
+  lcmLora String
+  styleLora String
+  installed Boolean @default(false)
+  workers AiWorker[]
+  images Image[]
+}
+model AiWorker {
+  id String @id
+  memberId String
+  member Member @relation(fields: [memberId], references: [id])
+  modelId String
+  model AiModel @relation(fields: [modelId], references: [id])
+  status String @default("offline")
+  modelLoadState String @default("unloaded")
+  currentJobId String?
+  lastHeartbeat DateTime?
+  completedJobs Int @default(0)
+  failedJobs Int @default(0)
+  totalLatencyMs BigInt @default(0)
+  images Image[]
+  heartbeats WorkerHeartbeat[]
+  logs GenerationLog[]
+}
+model Image {
+  id String @id @default(uuid())
+  englishDescription String
+  originalQuery String
+  normalizedSearch String
+  prompt String
+  negativePrompt String
+  workerId String
+  worker AiWorker @relation(fields: [workerId], references: [id])
+  modelId String
+  model AiModel @relation(fields: [modelId], references: [id])
+  checkpoint String
+  loraName String
+  seed Int
+  width Int
+  height Int
+  steps Int
+  guidanceScale Float
+  latencyMs Int
+  storagePath String @unique
+  createdAt DateTime @default(now())
+  tags ImageTag[]
+  job GenerationJob?
+  @@index([createdAt(sort: Desc)])
+  @@index([normalizedSearch])
+  @@index([workerId])
+  @@index([modelId])
+}
+model ImageTag {
+  id String @id @default(uuid())
+  imageId String
+  image Image @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  tag String
+  @@index([tag])
+}
+model GenerationJob {
+  id String @id @default(uuid())
+  normalizedSearch String
+  originalQuery String
+  source String
+  status String @default("queued")
+  error String?
+  workerId String?
+  imageId String? @unique
+  image Image? @relation(fields: [imageId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  logs GenerationLog[]
+  @@index([status])
+  @@index([normalizedSearch, status])
+}
+model GenerationLog {
+  id String @id @default(uuid())
+  jobId String
+  job GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  workerId String?
+  worker AiWorker? @relation(fields: [workerId], references: [id])
+  level String
+  message String
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+}
+model WorkerHeartbeat {
+  id String @id @default(uuid())
+  workerId String
+  worker AiWorker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  status String
+  createdAt DateTime @default(now())
+  @@index([workerId, createdAt(sort: Desc)])
+}
+model SchedulerState {
+  id Int @id @default(1)
+  paused Boolean @default(false)
+  updatedAt DateTime @updatedAt
+}

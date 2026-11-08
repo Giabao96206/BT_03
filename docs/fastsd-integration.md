@@ -1,0 +1,7 @@
+# FastSD CPU integration
+
+The upstream `/api/generate` path returns Base64 images and mutates shared settings. `services/fastsd-adapter/generate.py` instead imports FastSD's `get_lcm_lora_pipeline`, loads the configured Stable Diffusion 1.5 checkpoint with LCM-LoRA, adds the local Hokusai `.safetensors` style adapter, runs CPU inference and atomically publishes a PNG. It resolves model IDs to existing local snapshot directories because the Hub cache lacks optional repository files and strict snapshot validation rejects it. It does not edit FastSD source or reinstall its environment.
+
+Defaults: 512×512, 4 LCM steps, guidance 1, style weight 0.7, float32 CPU weights and four Torch threads, and a prompt that emphasizes complete visible subjects. The first measured float16 attempt timed out after 15 minutes, so the adapter now uses CPU-friendly float32 and skips loading the unused safety checker to reduce memory pressure. Width, height, steps, guidance, style weight, negative prompt, dtype and model paths are environment settings. The seed is random per job and stored in PostgreSQL. Model weights must already be cached; `local_files_only=True` prevents unexpected downloads at generation time. On failure the adapter exits nonzero and reports the actual error. No placeholder image is produced.
+
+Image quality needs visual review after the first real benchmark. The current adapter is one-shot because two resident Stable Diffusion pipelines would be risky on this host. A future warm pipeline manager can be introduced after measured RAM profiling.

@@ -1,0 +1,8 @@
+node_modules
+.next
+dist
+.env
+storage/images
+dist
+configs/models/checkpoints
+*.pyc

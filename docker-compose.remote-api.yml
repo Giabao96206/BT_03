@@ -1,0 +1,5 @@
+# Apply on db1 only. PostgreSQL and Redis stay bound to localhost.
+services:
+  api:
+    ports:
+      - "${BT03_TAILSCALE_IP:-100.72.133.40}:3102:3101"

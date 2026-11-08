@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+const base=process.env.API_URL||'http://127.0.0.1:3101';
+const get=async path=>{const r=await fetch(base+path);return {status:r.status,body:await r.json()};};
+const health=await get('/api/health');assert.equal(health.status,200);
+const invalid=await get('/api/images/search?q=..%2Fbad');assert.equal(invalid.status,400);
+const page=await get('/api/images?page=1');assert.equal(page.status,200);assert.ok(page.body.items.length<=50);
+const workers=await get('/api/workers');assert.equal(workers.status,200);assert.ok(workers.body.some(w=>w.id==='1.1'));
+const query=`test wooden lantern ${Date.now()}`;
+const first=await get(`/api/images/search?q=${encodeURIComponent(query)}`);assert.equal(first.status,202);
+const second=await get(`/api/images/search?q=${encodeURIComponent(query)}`);assert.equal(second.body.job.id,first.body.job.id);
+console.log('Health, validation, pagination, workers and job deduplication passed. Job:',first.body.job.id);

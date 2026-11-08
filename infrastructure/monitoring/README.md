@@ -1,0 +1,3 @@
+# Monitoring
+
+The application dashboard is at `http://192.168.201.128:3100/monitoring`. It displays website, API, PostgreSQL, Redis, worker, queue, image and inference metrics and refreshes every 10 seconds. Uptime Kuma is bound to `127.0.0.1:3301`. Configure HTTP monitors for `http://web:3100/` and `http://api:3101/api/health` from Kuma's container network; this initial Kuma setup has not been automated. The API `/api/stats` exposes image, queue, worker, success and failure counts. Docker JSON logs are available with `docker compose logs --since 1h api worker-11 worker-12 scheduler`. Add notifications inside Kuma only after verifying destinations; no notification endpoint is configured by default.

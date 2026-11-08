@@ -1,0 +1,13 @@
+# Copy this file and .env.remote.example to a teammate's machine.
+services:
+  remote-worker:
+    image: bt03-ukiyoe/fastsd-remote-worker:1
+    restart: unless-stopped
+    env_file: .env.remote
+    volumes:
+      - bt03_model_cache:/models/huggingface
+    cpus: 4.0
+    mem_limit: 6g
+    memswap_limit: 8g
+volumes:
+  bt03_model_cache:

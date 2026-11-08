@@ -1,0 +1,11 @@
+node_modules/
+.tools/
+.next/
+dist/
+.env
+storage/images/*
+!storage/images/.gitkeep
+__pycache__/
+*.pyc
+configs/models/checkpoints/*
+!configs/models/checkpoints/.gitkeep

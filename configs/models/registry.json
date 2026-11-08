@@ -1,0 +1,6 @@
+{
+  "workers": [
+    {"id":"1.1","memberId":"1","modelId":"sd15","checkpointEnv":"MODEL_11","defaultCheckpoint":"stable-diffusion-v1-5/stable-diffusion-v1-5"},
+    {"id":"1.2","memberId":"1","modelId":"second","checkpointEnv":"MODEL_12","defaultCheckpoint":null}
+  ]
+}

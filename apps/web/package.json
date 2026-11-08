@@ -1,0 +1,1 @@
+{"name":"@bt03/web","version":"1.0.0","private":true,"scripts":{"dev":"next dev -p 3100","build":"next build","start":"next start -p 3100"},"dependencies":{"@bt03/shared":"1.0.0","next":"^15.5.0","react":"^19.1.0","react-dom":"^19.1.0"},"devDependencies":{"@types/react":"^19.1.0","@types/react-dom":"^19.1.0","tailwindcss":"^3.4.0","postcss":"^8.5.0","autoprefixer":"^10.4.0"}}

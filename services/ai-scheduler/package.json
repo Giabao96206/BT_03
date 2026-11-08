@@ -1,0 +1,1 @@
+{"name":"@bt03/ai-scheduler","version":"1.0.0","main":"dist/index.js","scripts":{"build":"tsc -p tsconfig.json","start":"node dist/index.js"},"dependencies":{"@bt03/shared":"1.0.0","@prisma/client":"^6.19.0","bullmq":"^5.61.0","ioredis":"^5.8.0"}}

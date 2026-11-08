@@ -1,0 +1,2 @@
+@tailwind base;@tailwind components;@tailwind utilities;
+:root{color-scheme:light}body{background:#f2ecdb;color:#1f302e;font-family:Georgia,'Times New Roman',serif}button,input{font-family:Arial,sans-serif}button{cursor:pointer}.wood{background-image:radial-gradient(#b99d6b22 1px,transparent 1px);background-size:18px 18px}.card{box-shadow:0 10px 35px #14211c19}.ornament{border-top:1px solid #c7bba4;border-bottom:1px solid #c7bba4}

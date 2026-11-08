@@ -1,0 +1,18 @@
+CREATE TABLE "Member" ("id" TEXT PRIMARY KEY,"name" TEXT NOT NULL);
+CREATE TABLE "AiModel" ("id" TEXT PRIMARY KEY,"checkpoint" TEXT NOT NULL UNIQUE,"lcmLora" TEXT NOT NULL,"styleLora" TEXT NOT NULL,"installed" BOOLEAN NOT NULL DEFAULT false);
+CREATE TABLE "AiWorker" ("id" TEXT PRIMARY KEY,"memberId" TEXT NOT NULL REFERENCES "Member"("id"),"modelId" TEXT NOT NULL REFERENCES "AiModel"("id"),"status" TEXT NOT NULL DEFAULT 'offline',"modelLoadState" TEXT NOT NULL DEFAULT 'unloaded',"currentJobId" TEXT,"lastHeartbeat" TIMESTAMP(3),"completedJobs" INTEGER NOT NULL DEFAULT 0,"failedJobs" INTEGER NOT NULL DEFAULT 0,"totalLatencyMs" BIGINT NOT NULL DEFAULT 0);
+CREATE TABLE "Image" ("id" TEXT PRIMARY KEY,"englishDescription" TEXT NOT NULL,"originalQuery" TEXT NOT NULL,"normalizedSearch" TEXT NOT NULL,"prompt" TEXT NOT NULL,"negativePrompt" TEXT NOT NULL,"workerId" TEXT NOT NULL REFERENCES "AiWorker"("id"),"modelId" TEXT NOT NULL REFERENCES "AiModel"("id"),"checkpoint" TEXT NOT NULL,"loraName" TEXT NOT NULL,"seed" INTEGER NOT NULL,"width" INTEGER NOT NULL,"height" INTEGER NOT NULL,"steps" INTEGER NOT NULL,"guidanceScale" DOUBLE PRECISION NOT NULL,"latencyMs" INTEGER NOT NULL,"storagePath" TEXT NOT NULL UNIQUE,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE "ImageTag" ("id" TEXT PRIMARY KEY,"imageId" TEXT NOT NULL REFERENCES "Image"("id") ON DELETE CASCADE,"tag" TEXT NOT NULL);
+CREATE TABLE "GenerationJob" ("id" TEXT PRIMARY KEY,"normalizedSearch" TEXT NOT NULL,"originalQuery" TEXT NOT NULL,"source" TEXT NOT NULL,"status" TEXT NOT NULL DEFAULT 'queued',"error" TEXT,"workerId" TEXT,"imageId" TEXT UNIQUE REFERENCES "Image"("id"),"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE "GenerationLog" ("id" TEXT PRIMARY KEY,"jobId" TEXT NOT NULL REFERENCES "GenerationJob"("id") ON DELETE CASCADE,"workerId" TEXT REFERENCES "AiWorker"("id"),"level" TEXT NOT NULL,"message" TEXT NOT NULL,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE "WorkerHeartbeat" ("id" TEXT PRIMARY KEY,"workerId" TEXT NOT NULL REFERENCES "AiWorker"("id") ON DELETE CASCADE,"status" TEXT NOT NULL,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE "SchedulerState" ("id" INTEGER PRIMARY KEY DEFAULT 1,"paused" BOOLEAN NOT NULL DEFAULT false,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX "Image_createdAt_idx" ON "Image"("createdAt" DESC);
+CREATE INDEX "Image_normalizedSearch_idx" ON "Image"("normalizedSearch");
+CREATE INDEX "Image_workerId_idx" ON "Image"("workerId");
+CREATE INDEX "Image_modelId_idx" ON "Image"("modelId");
+CREATE INDEX "ImageTag_tag_idx" ON "ImageTag"("tag");
+CREATE INDEX "GenerationJob_status_idx" ON "GenerationJob"("status");
+CREATE INDEX "GenerationJob_normalizedSearch_status_idx" ON "GenerationJob"("normalizedSearch","status");
+CREATE INDEX "GenerationLog_createdAt_idx" ON "GenerationLog"("createdAt");
+CREATE INDEX "WorkerHeartbeat_workerId_createdAt_idx" ON "WorkerHeartbeat"("workerId","createdAt" DESC);

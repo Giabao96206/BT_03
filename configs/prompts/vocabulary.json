@@ -1,0 +1,12 @@
+{
+  "animals":["black dog","white cat","brown horse","blue butterfly","red fox"],
+  "plants":["green tree","cherry blossom","bamboo stalk","red maple leaf"],
+  "transportation":["red bicycle","old sailing ship","wooden cart"],
+  "food":["rice bowl","orange persimmon","green tea cup"],
+  "household objects":["wooden chair","paper lantern","ceramic vase"],
+  "tools":["iron hammer","hand saw","wooden rake"],
+  "buildings":["Japanese temple","stone bridge","wooden farmhouse"],
+  "nature":["Mount Fuji","ocean wave","snowy mountain"],
+  "historical objects":["samurai helmet","bronze bell","old compass"],
+  "traditional Japanese culture":["kimono","torii gate","koi fish"]
+}
