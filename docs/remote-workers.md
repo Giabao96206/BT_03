@@ -39,6 +39,23 @@ Máy thành viên cần Docker, Docker Compose, Git và Tailscale. Sau khi vào 
 ```bash
 git clone https://github.com/Giabao96206/BT_03.git
 cd BT_03
+mkdir -p dist
+curl -fL -o dist/fastsd-remote-worker-1.tar.gz \
+  https://github.com/Giabao96206/BT_03/releases/download/remote-worker-v1/fastsd-remote-worker-1.tar.gz
+curl -fL -o dist/fastsd-remote-worker-1.tar.gz.sha256 \
+  https://github.com/Giabao96206/BT_03/releases/download/remote-worker-v1/fastsd-remote-worker-1.tar.gz.sha256
+sha256sum -c dist/fastsd-remote-worker-1.tar.gz.sha256
+docker load -i dist/fastsd-remote-worker-1.tar.gz
+cp .env.remote.example .env.remote
+# Sửa WORKER_ID, WORKER_TOKEN, CENTRAL_API_URL và MEMBER_NAME trong .env.remote
+chmod 600 .env.remote
+docker compose -f docker-compose.remote-worker.yml up -d
+docker compose -f docker-compose.remote-worker.yml logs -f remote-worker
+```
+
+Nếu không muốn tải image build sẵn hoặc máy không phải `linux/amd64`, build image từ mã nguồn vừa clone:
+
+```bash
 docker build -f infrastructure/docker/remote-worker.Dockerfile \
   -t bt03-ukiyoe/fastsd-remote-worker:1 .
 cp .env.remote.example .env.remote
@@ -50,7 +67,7 @@ docker compose -f docker-compose.remote-worker.yml logs -f remote-worker
 
 Ví dụ máy thứ nhất dùng `WORKER_ID=1.2`, máy thứ hai dùng `1.3`, máy thứ ba dùng `1.4`. `CENTRAL_API_URL` của tất cả máy là `http://100.72.133.40:3102`.
 
-Nếu muốn chuyển image đã build sẵn thay vì build trên từng máy, chạy `./scripts/package-remote-worker.sh` trên `db1`, rồi chuyển `dist/fastsd-remote-worker-1.tar.gz` trực tiếp. Gói tar không lưu trong Git vì vượt giới hạn kích thước file thông thường của GitHub.
+Gói tar được lưu dưới GitHub Release `remote-worker-v1` vì vượt giới hạn kích thước file của commit Git thông thường. Nếu cần tạo lại, chạy `./scripts/package-remote-worker.sh` trên `db1` rồi cập nhật Release.
 
 Lần build đầu tải thư viện Python; lần chạy đầu tải checkpoint SD 1.5 và LCM-LoRA về volume `bt03_model_cache`. Vì vậy máy cần Internet, vài GB dung lượng và thời gian tải. Sau đó worker mới đăng ký và nhận job. Mỗi máy nên có ít nhất 8 GB RAM và 10 GB trống cho Docker/model; giới hạn Compose hiện là 4 CPU, 6 GB RAM. Có thể đặt `MODEL_CHECKPOINT` thành một checkpoint SD 1.5 tương thích khác, ví dụ `Lykon/dreamshaper-8`; hãy thử một ảnh trước khi cho chạy liên tục. Worker 1.2 trên `db1` được dừng để ID này chỉ thuộc máy từ xa.
 

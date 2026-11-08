@@ -19,7 +19,7 @@ The host must allow Docker Compose, have ports 3100, 3101, 3301, 55433 and 56379
 
 ## Add teammate workers
 
-Teammates can clone this repository and build the standalone FastSD CPU worker image without copying the server database or Redis credentials. Each machine needs its own worker ID and token issued on `db1`. Follow [docs/remote-workers.md](docs/remote-workers.md).
+Teammates can clone this repository and either download the prebuilt image from the `remote-worker-v1` GitHub Release or build the standalone FastSD CPU worker image locally. They never need the server database or Redis credentials. Each machine needs its own worker ID and token issued on `db1`. Follow [docs/remote-workers.md](docs/remote-workers.md).
 
 See `docs/remote-workers.md`, `docs/architecture.md`, `docs/ubuntu-deployment.md`, `docs/fastsd-integration.md`, `docs/ai-workers.md`, `docs/zero-miss-search.md`, and `docs/testing.md`.
 
