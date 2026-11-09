@@ -1,7 +1,7 @@
 # Copy this file and .env.remote.example to a teammate's machine.
 services:
   remote-worker:
-    image: bt03-ukiyoe/fastsd-remote-worker:1
+    image: bt03-ukiyoe/fastsd-remote-worker:2
     restart: unless-stopped
     env_file: .env.remote
     volumes:
