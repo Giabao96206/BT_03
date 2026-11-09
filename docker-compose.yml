@@ -68,7 +68,6 @@ services:
     networks: [bt03_internal]
   worker-11:
     build: {context: ., dockerfile: infrastructure/docker/Dockerfile, target: worker}
-    cpus: 4.0
     mem_limit: 4.5g
     memswap_limit: 5g
     env_file: .env
@@ -95,7 +94,6 @@ services:
   worker-12:
     profiles: [local-second-worker]
     build: {context: ., dockerfile: infrastructure/docker/Dockerfile, target: worker}
-    cpus: 4.0
     mem_limit: 4.5g
     memswap_limit: 5g
     env_file: .env

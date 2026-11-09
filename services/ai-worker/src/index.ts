@@ -79,7 +79,7 @@ async function processJob(job:Job<{dbJobId:string}>) {
       await tx.aiWorker.update({where:{id},data:{status:'idle',modelLoadState:'unloaded',currentJobId:null,completedJobs:{increment:1},totalLatencyMs:{increment:BigInt(Math.round(result.latencyMs))}}});
       await tx.generationLog.create({data:{jobId:record.id,workerId:id,level:'info',message:'Image saved'}});
     });
-    log('info','completed',{jobId:record.id,latencyMs:result.latencyMs});
+    log('info','completed',{jobId:record.id,latencyMs:result.latencyMs,cpuThreads:result.cpuThreads});
   } catch(error) {
     const final=job.attemptsMade+1 >= (job.opts.attempts||1);
     await db.$transaction([

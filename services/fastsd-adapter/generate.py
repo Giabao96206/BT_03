@@ -6,6 +6,55 @@ import sys
 import time
 import traceback
 
+
+def _cgroup_cpu_limit():
+    """Return the whole CPU quota exposed by cgroup v1/v2, if one exists."""
+    try:
+        quota, period = pathlib.Path("/sys/fs/cgroup/cpu.max").read_text().split()
+        if quota != "max":
+            return max(1, int(quota) // int(period))
+    except (FileNotFoundError, OSError, ValueError, ZeroDivisionError):
+        pass
+    try:
+        quota = int(pathlib.Path("/sys/fs/cgroup/cpu/cpu.cfs_quota_us").read_text())
+        period = int(pathlib.Path("/sys/fs/cgroup/cpu/cpu.cfs_period_us").read_text())
+        if quota > 0:
+            return max(1, quota // period)
+    except (FileNotFoundError, OSError, ValueError, ZeroDivisionError):
+        pass
+    return None
+
+
+def available_cpu_threads():
+    """Detect CPUs available to this process, including affinity and cgroup limits."""
+    detected = os.cpu_count() or 1
+    try:
+        detected = min(detected, len(os.sched_getaffinity(0)))
+    except AttributeError:
+        pass
+    quota = _cgroup_cpu_limit()
+    if quota is not None:
+        detected = min(detected, quota)
+    return max(1, detected)
+
+
+def configured_cpu_threads():
+    configured = os.environ.get("CPU_THREADS", "auto").strip().lower()
+    if configured in ("", "auto"):
+        # SD 1.5 CPU inference becomes memory-bandwidth bound on larger hosts.
+        # Six threads was faster than using every visible CPU on the reference host.
+        return min(6, available_cpu_threads())
+    if configured == "max":
+        return available_cpu_threads()
+    try:
+        requested = int(configured)
+        if requested < 1:
+            raise ValueError
+        return min(requested, available_cpu_threads())
+    except ValueError as error:
+        raise ValueError("CPU_THREADS must be 'auto' or a positive integer") from error
+
+
 def local_snapshot(model_id, required_file):
     """Use existing cache files without requiring every optional Hub file."""
     candidate = pathlib.Path(model_id)
@@ -30,11 +79,15 @@ def main():
     data = json.load(sys.stdin)
     root = pathlib.Path(os.environ['FASTSD_PATH']).resolve()
     sys.path.insert(0, str(root / 'src'))
+    cpu_threads = configured_cpu_threads()
+    os.environ.setdefault("OMP_NUM_THREADS", str(cpu_threads))
+    os.environ.setdefault("MKL_NUM_THREADS", str(cpu_threads))
     import torch
     from backend.pipelines.lcm_lora import get_lcm_lora_pipeline
     from PIL import Image
-    torch.set_num_threads(max(1, min(8, int(os.environ.get('CPU_THREADS', '4')))))
+    torch.set_num_threads(cpu_threads)
     torch.set_num_interop_threads(1)
+    print(f"BT03_CPU_THREADS {cpu_threads}", flush=True)
 
     output = pathlib.Path(data['output']).resolve()
     image_root = pathlib.Path(os.environ['IMAGE_ROOT']).resolve()
@@ -70,7 +123,7 @@ def main():
         os.link(temp,output)
     finally:
         temp.unlink(missing_ok=True)
-    print('BT03_RESULT '+json.dumps({'latencyMs':round((time.perf_counter()-started)*1000),'width':image.width,'height':image.height,'path':str(output)}),flush=True)
+    print('BT03_RESULT '+json.dumps({'latencyMs':round((time.perf_counter()-started)*1000),'width':image.width,'height':image.height,'path':str(output),'cpuThreads':cpu_threads}),flush=True)
 
 if __name__ == '__main__':
     try: main()

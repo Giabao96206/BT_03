@@ -48,6 +48,7 @@ def generate(job):
     if not line: raise RuntimeError(f'FastSD exit {run.returncode}: {run.stderr[-1000:]}')
     result=json.loads(line)
     if run.returncode or 'error' in result: raise RuntimeError(result.get('error',run.stderr[-1000:]))
+    print(json.dumps({'event':'inference-config','cpuThreads':result.get('cpuThreads')}),flush=True)
     metadata={key:result[key] for key in ('latencyMs','width','height')}
     metadata.update(jobId=job['jobId'],seed=job['seed'])
     try:

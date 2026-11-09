@@ -2,7 +2,7 @@
 
 ## Kiến trúc
 
-`db1` giữ PostgreSQL, Redis, API, ảnh PNG và giao diện. Máy thành viên chỉ chạy image `bt03-ukiyoe/fastsd-remote-worker:2`. Worker kết nối đến API của `db1` qua Tailscale, xác thực bằng token riêng, nhận một job khi rảnh, chạy FastSD CPU, rồi tải PNG lên API. API ghi ảnh và metadata vào PostgreSQL. Không cấp cổng hay mật khẩu PostgreSQL/Redis cho thành viên.
+`db1` giữ PostgreSQL, Redis, API, ảnh PNG và giao diện. Máy thành viên chỉ chạy image `bt03-ukiyoe/fastsd-remote-worker:3`. Worker kết nối đến API của `db1` qua Tailscale, xác thực bằng token riêng, nhận một job khi rảnh, chạy FastSD CPU, rồi tải PNG lên API. API ghi ảnh và metadata vào PostgreSQL. Không cấp cổng hay mật khẩu PostgreSQL/Redis cho thành viên.
 
 Một tìm kiếm chưa có ảnh tạo job ưu tiên cao. Worker 1.1 tại `db1` và các worker từ xa cùng tranh nhận job bằng cập nhật trạng thái có điều kiện; chỉ một worker nhận được. Scheduler tiếp tục tạo job nền. Mỗi worker từ xa lấy job mới sau khi xong job trước. Khi mất heartbeat quá 90 giây, job đang tạo được trả lại hàng đợi. Ảnh và trạng thái worker xuất hiện tại `/monitoring` và `/api/workers`.
 
@@ -40,12 +40,12 @@ Máy thành viên cần Docker, Docker Compose, Git và Tailscale. Sau khi vào 
 git clone https://github.com/Giabao96206/BT_03.git
 cd BT_03
 mkdir -p dist
-curl -fL -o dist/fastsd-remote-worker-2.tar.gz \
-  https://github.com/Giabao96206/BT_03/releases/download/remote-worker-v2/fastsd-remote-worker-2.tar.gz
-curl -fL -o dist/fastsd-remote-worker-2.tar.gz.sha256 \
-  https://github.com/Giabao96206/BT_03/releases/download/remote-worker-v2/fastsd-remote-worker-2.tar.gz.sha256
-sha256sum -c dist/fastsd-remote-worker-2.tar.gz.sha256
-docker load -i dist/fastsd-remote-worker-2.tar.gz
+curl -fL -o dist/fastsd-remote-worker-3.tar.gz \
+  https://github.com/Giabao96206/BT_03/releases/download/remote-worker-v3/fastsd-remote-worker-3.tar.gz
+curl -fL -o dist/fastsd-remote-worker-3.tar.gz.sha256 \
+  https://github.com/Giabao96206/BT_03/releases/download/remote-worker-v3/fastsd-remote-worker-3.tar.gz.sha256
+sha256sum -c dist/fastsd-remote-worker-3.tar.gz.sha256
+docker load -i dist/fastsd-remote-worker-3.tar.gz
 cp .env.remote.example .env.remote
 # Sửa WORKER_ID, WORKER_TOKEN, CENTRAL_API_URL và MEMBER_NAME trong .env.remote
 chmod 600 .env.remote
@@ -57,7 +57,7 @@ Nếu không muốn tải image build sẵn hoặc máy không phải `linux/amd
 
 ```bash
 docker build -f infrastructure/docker/remote-worker.Dockerfile \
-  -t bt03-ukiyoe/fastsd-remote-worker:2 .
+  -t bt03-ukiyoe/fastsd-remote-worker:3 .
 cp .env.remote.example .env.remote
 # Sửa WORKER_ID, WORKER_TOKEN, CENTRAL_API_URL và MEMBER_NAME trong .env.remote
 chmod 600 .env.remote
@@ -67,9 +67,11 @@ docker compose -f docker-compose.remote-worker.yml logs -f remote-worker
 
 Ví dụ máy thứ nhất dùng `WORKER_ID=1.2`, máy thứ hai dùng `1.3`, máy thứ ba dùng `1.4`. `CENTRAL_API_URL` của tất cả máy là `http://100.72.133.40:3102`.
 
-Gói tar được lưu dưới GitHub Release `remote-worker-v2` vì vượt giới hạn kích thước file của commit Git thông thường. Nếu cần tạo lại, chạy `./scripts/package-remote-worker.sh` trên `db1` rồi cập nhật Release.
+Gói tar được lưu dưới GitHub Release `remote-worker-v3` vì vượt giới hạn kích thước file của commit Git thông thường. Nếu cần tạo lại, chạy `./scripts/package-remote-worker.sh` trên `db1` rồi cập nhật Release.
 
-Worker v2 chỉ tải 13 file Diffusers cần thiết của SD 1.5 (3,974 GiB) và một file LCM-LoRA (0,125 GiB), tổng cache model khoảng 4,1 GiB. Style LoRA khoảng 19 MB đã nằm trong image. Nó không tải các checkpoint `.ckpt`, trọng số `.bin`, Flax, safety checker không dùng hoặc các bản checkpoint gốc trùng lặp. Lần build đầu tải thư viện Python; lần chạy đầu tải model về volume `bt03_model_cache`. Sau đó worker mới đăng ký và nhận job. Mỗi máy nên có ít nhất 8 GB RAM và 10 GB trống cho Docker/model; giới hạn Compose hiện là 4 CPU, 6 GB RAM. Worker 1.2 trên `db1` được dừng để ID này chỉ thuộc máy từ xa.
+Worker v3 chỉ tải 13 file Diffusers cần thiết của SD 1.5 (3,974 GiB) và một file LCM-LoRA (0,125 GiB), tổng cache model khoảng 4,1 GiB. Style LoRA khoảng 19 MB đã nằm trong image. Nó không tải các checkpoint `.ckpt`, trọng số `.bin`, Flax, safety checker không dùng hoặc các bản checkpoint gốc trùng lặp. Lần build đầu tải thư viện Python; lần chạy đầu tải model về volume `bt03_model_cache`. Sau đó worker mới đăng ký và nhận job. Mỗi máy nên có ít nhất 8 GB RAM và 10 GB trống cho Docker/model.
+
+`CPU_THREADS=auto` là mặc định. Worker tự đọc số CPU hệ điều hành cho phép và quota CPU của Docker. Với máy có tối đa 4 CPU, worker dùng toàn bộ; với máy lớn hơn, worker dùng tối đa 6 luồng vì benchmark SD 1.5 trên `db1` cho thấy 6 luồng nhanh hơn 8. Đặt `CPU_THREADS=max` để ép dùng toàn bộ CPU khả dụng, hoặc đặt một số nguyên như `CPU_THREADS=4` để giới hạn. Log của mỗi lượt sinh ảnh có sự kiện `inference-config` và trường `cpuThreads` để kiểm tra số luồng thực tế.
 
 ## Nâng cấp máy đã chạy worker v1
 
@@ -80,12 +82,31 @@ cd ~/BT_03
 git pull
 docker compose -f docker-compose.remote-worker.yml down -v
 mkdir -p dist
-curl -fL -o dist/fastsd-remote-worker-2.tar.gz \
-  https://github.com/Giabao96206/BT_03/releases/download/remote-worker-v2/fastsd-remote-worker-2.tar.gz
-curl -fL -o dist/fastsd-remote-worker-2.tar.gz.sha256 \
-  https://github.com/Giabao96206/BT_03/releases/download/remote-worker-v2/fastsd-remote-worker-2.tar.gz.sha256
-sha256sum -c dist/fastsd-remote-worker-2.tar.gz.sha256
-docker load -i dist/fastsd-remote-worker-2.tar.gz
+curl -fL -o dist/fastsd-remote-worker-3.tar.gz \
+  https://github.com/Giabao96206/BT_03/releases/download/remote-worker-v3/fastsd-remote-worker-3.tar.gz
+curl -fL -o dist/fastsd-remote-worker-3.tar.gz.sha256 \
+  https://github.com/Giabao96206/BT_03/releases/download/remote-worker-v3/fastsd-remote-worker-3.tar.gz.sha256
+sha256sum -c dist/fastsd-remote-worker-3.tar.gz.sha256
+docker load -i dist/fastsd-remote-worker-3.tar.gz
+docker compose -f docker-compose.remote-worker.yml up -d
+docker compose -f docker-compose.remote-worker.yml logs -f remote-worker
+```
+
+## Nâng cấp máy đang chạy worker v2
+
+Worker v3 dùng lại nguyên cache model của v2, token và `.env.remote`. Không chạy `down -v` ở bước này vì không cần tải lại model.
+
+```bash
+cd ~/BT_03
+git pull
+docker compose -f docker-compose.remote-worker.yml down
+mkdir -p dist
+curl -fL -o dist/fastsd-remote-worker-3.tar.gz \
+  https://github.com/Giabao96206/BT_03/releases/download/remote-worker-v3/fastsd-remote-worker-3.tar.gz
+curl -fL -o dist/fastsd-remote-worker-3.tar.gz.sha256 \
+  https://github.com/Giabao96206/BT_03/releases/download/remote-worker-v3/fastsd-remote-worker-3.tar.gz.sha256
+sha256sum -c dist/fastsd-remote-worker-3.tar.gz.sha256
+docker load -i dist/fastsd-remote-worker-3.tar.gz
 docker compose -f docker-compose.remote-worker.yml up -d
 docker compose -f docker-compose.remote-worker.yml logs -f remote-worker
 ```
