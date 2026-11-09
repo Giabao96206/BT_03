@@ -88,6 +88,7 @@ curl -fL -o dist/fastsd-remote-worker-3.tar.gz.sha256 \
   https://github.com/Giabao96206/BT_03/releases/download/remote-worker-v3/fastsd-remote-worker-3.tar.gz.sha256
 sha256sum -c dist/fastsd-remote-worker-3.tar.gz.sha256
 docker load -i dist/fastsd-remote-worker-3.tar.gz
+sed -i 's/^CPU_THREADS=.*/CPU_THREADS=auto/' .env.remote
 docker compose -f docker-compose.remote-worker.yml up -d
 docker compose -f docker-compose.remote-worker.yml logs -f remote-worker
 ```
@@ -107,6 +108,7 @@ curl -fL -o dist/fastsd-remote-worker-3.tar.gz.sha256 \
   https://github.com/Giabao96206/BT_03/releases/download/remote-worker-v3/fastsd-remote-worker-3.tar.gz.sha256
 sha256sum -c dist/fastsd-remote-worker-3.tar.gz.sha256
 docker load -i dist/fastsd-remote-worker-3.tar.gz
+sed -i 's/^CPU_THREADS=.*/CPU_THREADS=auto/' .env.remote
 docker compose -f docker-compose.remote-worker.yml up -d
 docker compose -f docker-compose.remote-worker.yml logs -f remote-worker
 ```
