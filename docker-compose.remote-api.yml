@@ -2,4 +2,4 @@
 services:
   api:
     ports:
-      - "${BT03_TAILSCALE_IP:-100.72.133.40}:3102:3101"
+      - "${BT03_TAILSCALE_IP:-100.125.161.12}:3102:3101"

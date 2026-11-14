@@ -18,7 +18,23 @@ docker compose -f docker-compose.yml -f docker-compose.remote-api.yml up -d --no
 curl -f http://127.0.0.1:3101/api/health
 ```
 
-File `docker-compose.remote-api.yml` mở thêm cổng `3102` **chỉ trên IP Tailscale** của `db1`; cổng API cũ `127.0.0.1:3101` vẫn có. Mặc định IP là `100.72.133.40`. Nếu IP Tailscale thay đổi, đặt `BT03_TAILSCALE_IP` trong `.env` trước khi chạy Compose. Dùng `tailscale ip -4` để kiểm tra. Máy thành viên phải vào cùng tailnet và ping được IP đó. Không mở cổng PostgreSQL/Redis ra mạng.
+File `docker-compose.remote-api.yml` mở thêm cổng `3102` **chỉ trên IP Tailscale** của `db1`; cổng API cũ `127.0.0.1:3101` vẫn có. Mặc định IP là `100.125.161.12`. Nếu IP Tailscale thay đổi, đặt `BT03_TAILSCALE_IP` trong `.env` trước khi chạy Compose. Dùng `tailscale ip -4` để kiểm tra. Máy thành viên phải vào cùng tailnet và ping được IP đó. Không mở cổng PostgreSQL/Redis ra mạng.
+
+## Đổi kết nối sang tailnet cá nhân
+
+Server `db1` hiện dùng IP `100.125.161.12`. Máy thành viên cần đăng nhập vào tailnet cá nhân được chủ server mời và được duyệt nếu có yêu cầu. Chỉ đổi IP trong file cấu hình sẽ không giúp máy còn ở tailnet trường kết nối được.
+
+Với worker đã cài (v2 hoặc v3), chạy trong thư mục `BT_03` trên máy thành viên:
+
+```bash
+tailscale ping 100.125.161.12
+curl --connect-timeout 10 -f http://100.125.161.12:3102/api/health
+sed -i 's|^CENTRAL_API_URL=.*|CENTRAL_API_URL=http://100.125.161.12:3102|' .env.remote
+sudo docker compose -f docker-compose.remote-worker.yml up -d --no-deps --force-recreate --pull never remote-worker
+sudo docker compose -f docker-compose.remote-worker.yml logs -f remote-worker
+```
+
+Chỉ khởi động lại worker khi kiểm tra health trả về `status: ok`. Giữ nguyên ID, token, phiên bản image và volume cache model; không cần tải lại image/model. Nếu đang chạy v2 thì giữ `CPU_THREADS=4`. `git pull` không tự sửa file `.env.remote` đã có, nên vẫn cần lệnh đổi `CENTRAL_API_URL` ở trên.
 
 ## Cấp token cho từng máy
 
@@ -65,7 +81,7 @@ docker compose -f docker-compose.remote-worker.yml up -d
 docker compose -f docker-compose.remote-worker.yml logs -f remote-worker
 ```
 
-Ví dụ máy thứ nhất dùng `WORKER_ID=1.2`, máy thứ hai dùng `1.3`, máy thứ ba dùng `1.4`. `CENTRAL_API_URL` của tất cả máy là `http://100.72.133.40:3102`.
+Ví dụ máy thứ nhất dùng `WORKER_ID=1.2`, máy thứ hai dùng `1.3`, máy thứ ba dùng `1.4`. `CENTRAL_API_URL` của tất cả máy là `http://100.125.161.12:3102`.
 
 Gói tar được lưu dưới GitHub Release `remote-worker-v3` vì vượt giới hạn kích thước file của commit Git thông thường. Nếu cần tạo lại, chạy `./scripts/package-remote-worker.sh` trên `db1` rồi cập nhật Release.
 
@@ -113,7 +129,7 @@ docker compose -f docker-compose.remote-worker.yml up -d
 docker compose -f docker-compose.remote-worker.yml logs -f remote-worker
 ```
 
-Trên `db1`, đặt `BT03_REMOTE_API_ENABLED=true` và `BT03_TAILSCALE_IP=100.72.133.40` trong `.env` để các lần chạy `./scripts/start-all.sh` sau vẫn giữ cổng 3102. Sau khi khởi động lại Ubuntu, kiểm tra `curl http://100.72.133.40:3102/api/health`; nếu Tailscale lên chậm hơn Docker, chạy lại `./scripts/start-all.sh`. Không cần chạy worker từ xa trên `db1` sau bước thử nghiệm.
+Trên `db1`, đặt `BT03_REMOTE_API_ENABLED=true` và `BT03_TAILSCALE_IP=100.125.161.12` trong `.env` để các lần chạy `./scripts/start-all.sh` sau vẫn giữ cổng 3102. Sau khi khởi động lại Ubuntu, kiểm tra `curl http://100.125.161.12:3102/api/health`; nếu Tailscale lên chậm hơn Docker, chạy lại `./scripts/start-all.sh`. Không cần chạy worker từ xa trên `db1` sau bước thử nghiệm.
 
 ## Kiểm tra
 
