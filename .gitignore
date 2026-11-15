@@ -8,6 +8,7 @@ dist/
 .env.beszel-agent
 .env.beszel-agent-*
 storage/images/*
+storage/recovered-orphans/
 !storage/images/.gitkeep
 __pycache__/
 *.pyc
