@@ -1,0 +1,21 @@
+name: bt03-monitoring
+services:
+  beszel:
+    image: henrygd/beszel:0.21.2
+    restart: unless-stopped
+    env_file: .env.beszel
+    environment:
+      APP_URL: http://${BT03_TAILSCALE_IP:-100.125.161.12}:8090
+      DISABLE_SSH: "true"
+      CONTAINER_DETAILS: "false"
+    ports:
+      - "127.0.0.1:8090:8090"
+      - "${BT03_TAILSCALE_IP:-100.125.161.12}:8090:8090"
+    volumes:
+      - beszel_data:/beszel_data
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+volumes:
+  beszel_data:

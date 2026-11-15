@@ -1,0 +1,5 @@
+# Optional on Linux hosts with a physical Wi-Fi adapter. VMware virtual NICs
+# do not expose the host laptop's Wi-Fi radio to an agent running inside the VM.
+services:
+  beszel-agent:
+    cap_add: [NET_ADMIN]

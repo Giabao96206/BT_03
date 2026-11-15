@@ -1,5 +1,21 @@
 # Testing and benchmarks
 
+## Beszel and worker monitoring verification (15 November 2026)
+
+Beszel Hub and local agent are pinned to 0.21.2. The local system `db1 / worker 1.1` was verified as `up` with actual CPU, RAM, swap, disk and per-interface network records, including `ens33` and `tailscale0`. These metrics describe the Ubuntu VM, not the Windows host. Remote machines need their own agent before host charts appear in Beszel.
+
+The updated `/monitoring` page was checked with Chromium on desktop (1440 px) and mobile (390 px): no JavaScript runtime errors or horizontal overflow, correct Beszel link, worker counts, current jobs and last images. Percentage completion is intentionally not fabricated for v2/v3 workers.
+
+Read-only checks:
+
+```bash
+docker exec -i bt03-ukiyoe-api-1 node --input-type=module < tests/monitoring.mjs
+python3 tests/beszel-check.py
+docker exec bt03-ukiyoe-api-1 npm test
+```
+
+The monitoring integration check validates job ownership and last-image provenance against PostgreSQL. All four existing shared unit tests also passed. Beszel credentials are read from the ignored local `.env.beszel`; the checker never prints tokens or passwords.
+
 Commands:
 
 ```bash

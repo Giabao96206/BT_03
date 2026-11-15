@@ -19,6 +19,8 @@ The host must allow Docker Compose, have ports 3100, 3101, 3301, 55433 and 56379
 
 ## Add teammate workers
 
+Host/container monitoring is available through Beszel, alongside per-worker image counts and live jobs on `/monitoring`. See [docs/beszel-monitoring.md](docs/beszel-monitoring.md) to install a separate agent on each worker machine (AI v2/v3 compatible).
+
 Teammates can clone this repository and either download the filtered prebuilt image from the `remote-worker-v3` GitHub Release or build the standalone FastSD CPU worker image locally. Worker v3 downloads only the Diffusers files required for inference and automatically selects CPU threads from each machine's available CPUs. They never need the server database or Redis credentials. Each machine needs its own worker ID and token issued on `db1`. Follow [docs/remote-workers.md](docs/remote-workers.md).
 
 See `docs/remote-workers.md`, `docs/architecture.md`, `docs/ubuntu-deployment.md`, `docs/fastsd-integration.md`, `docs/ai-workers.md`, `docs/zero-miss-search.md`, and `docs/testing.md`.

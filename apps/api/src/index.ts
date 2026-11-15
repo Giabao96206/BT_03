@@ -28,6 +28,21 @@ function admin(req:Request,res:Response,next:NextFunction) {
 function imageView(image:any) { return {...image,url:`/api/images/${image.id}/file`}; }
 function workerView(worker:any) { const {totalLatencyMs,...rest}=worker; return {...rest,averageLatencyMs:worker.completedJobs ? Number(totalLatencyMs)/worker.completedJobs : 0,modelAvailable:worker.model.installed}; }
 
+async function monitoringWorkers(workers:any[]) {
+  const since=new Date(Date.now()-24*60*60*1000);
+  const [jobs,recentCounts,lastImages]=await Promise.all([
+    db.generationJob.findMany({where:{id:{in:workers.map(w=>w.currentJobId).filter(Boolean)}},select:{id:true,normalizedSearch:true,status:true,source:true,updatedAt:true}}),
+    db.image.groupBy({by:['workerId'],where:{createdAt:{gte:since}},_count:true}),
+    Promise.all(workers.map(w=>db.image.findFirst({where:{workerId:w.id},orderBy:{createdAt:'desc'},select:{id:true,englishDescription:true,latencyMs:true,createdAt:true}}))),
+  ]);
+  return workers.map((worker,i)=>({...workerView(worker),
+    online:!!worker.lastHeartbeat && Date.now()-worker.lastHeartbeat.getTime()<90_000,
+    currentJob:jobs.find(job=>job.id===worker.currentJobId)||null,
+    imagesLast24Hours:recentCounts.find(row=>row.workerId===worker.id)?._count||0,
+    lastImage:lastImages[i]?imageView(lastImages[i]):null,
+  }));
+}
+
 async function enqueue(description:string,source:'search'|'background') {
   const normalized = normalizeQuery(description);
   const result = await db.$transaction(async tx => {
@@ -78,7 +93,13 @@ app.get('/api/images/:id/file',asyncRoute(async(req,res)=>{
 }));
 app.get('/api/stats',asyncRoute(async(_req,res)=>{
   const [images,completed,failed,workers,queueCounts]=await Promise.all([db.image.count(),db.generationJob.count({where:{status:'completed'}}),db.generationJob.count({where:{status:'failed'}}),db.aiWorker.findMany({include:{model:true}}),queue.getJobCounts('waiting','active','delayed','prioritized')]);
-  res.json({images,completed,failed,queue:queueCounts,workers:workers.map(workerView)});
+  const activeJobs=await db.generationJob.findMany({where:{status:{in:['queued','generating','saving']}},select:{id:true,status:true}});
+  res.json({images,completed,failed,queue:queueCounts,workers:await monitoringWorkers(workers),
+    generation:{queued:activeJobs.filter(j=>j.status==='queued').length,generating:activeJobs.filter(j=>j.status==='generating').length,saving:activeJobs.filter(j=>j.status==='saving').length,
+      unassignedActive:activeJobs.filter(j=>j.status!=='queued'&&!workers.some(w=>w.currentJobId===j.id)).length},
+    monitoring:{beszelUrl:process.env.BESZEL_URL||`http://${process.env.BT03_TAILSCALE_IP||'100.125.161.12'}:8090`},
+    capturedAt:new Date().toISOString(),
+  });
 }));
 app.get('/api/workers',asyncRoute(async(_req,res)=>res.json((await db.aiWorker.findMany({include:{model:true}})).map(workerView))));
 app.get('/api/workers/:id',asyncRoute(async(req,res)=>{

@@ -2,6 +2,11 @@ node_modules
 .next
 dist
 .env
+.env.*
+!.env.example
+!.env.remote.example
+!.env.beszel.example
+!.env.beszel-agent.example
 storage/images
 dist
 configs/models/checkpoints

@@ -1,5 +1,7 @@
 # Worker FastSD CPU trên máy thành viên
 
+Giám sát CPU/RAM/mạng của máy bằng Beszel và job/ảnh theo worker: xem [beszel-monitoring.md](beszel-monitoring.md). Agent Beszel chạy riêng, tương thích worker AI v2/v3.
+
 ## Kiến trúc
 
 `db1` giữ PostgreSQL, Redis, API, ảnh PNG và giao diện. Máy thành viên chỉ chạy image `bt03-ukiyoe/fastsd-remote-worker:3`. Worker kết nối đến API của `db1` qua Tailscale, xác thực bằng token riêng, nhận một job khi rảnh, chạy FastSD CPU, rồi tải PNG lên API. API ghi ảnh và metadata vào PostgreSQL. Không cấp cổng hay mật khẩu PostgreSQL/Redis cho thành viên.

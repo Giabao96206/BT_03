@@ -3,6 +3,10 @@ node_modules/
 .next/
 dist/
 .env
+.env.remote
+.env.beszel
+.env.beszel-agent
+.env.beszel-agent-*
 storage/images/*
 !storage/images/.gitkeep
 __pycache__/
