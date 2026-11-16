@@ -10,7 +10,18 @@ try {
   assert.match(stats.monitoring.beszelUrl,/^https?:\/\//);
   assert.ok(Date.now()-Date.parse(stats.capturedAt)<15_000);
   assert.equal(typeof stats.generation.unassignedActive,'number');
+  for(const id of (process.env.MONITORING_WORKER_IDS||'1.1,1.2,1.3,1.4,1.5').split(',')){
+    assert.ok(stats.workers.some(w=>w.id===id.trim()),`Missing team worker ${id}`);
+  }
   for(const worker of stats.workers){
+    const registration=await db.aiWorker.findUnique({where:{id:worker.id}});
+    assert.equal(worker.registered,!!registration);
+    if(!registration){
+      assert.equal(worker.online,false);
+      assert.equal(worker.lastHeartbeat,null);
+      assert.equal(worker.currentJob,null);
+      assert.equal(worker.completedJobs,0);
+    }
     assert.equal(typeof worker.online,'boolean');
     assert.ok(Number.isInteger(worker.imagesLast24Hours)&&worker.imagesLast24Hours>=0);
     if(worker.lastImage){

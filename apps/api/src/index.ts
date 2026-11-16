@@ -8,7 +8,7 @@ import { z, ZodError } from 'zod';
 import { normalizeQuery, pageSchema } from '@bt03/shared';
 import { existsSync, createReadStream } from 'node:fs';
 import path from 'node:path';
-import { remoteRoutes, recoverQueuedJob } from './remote';
+import { remoteRoutes, recoverQueuedJob, recoverOrphanedLocalJobs } from './remote';
 
 const db = new PrismaClient();
 const redis = new IORedis(process.env.REDIS_URL || 'redis://127.0.0.1:56379', { maxRetriesPerRequest:null });
@@ -35,12 +35,23 @@ async function monitoringWorkers(workers:any[]) {
     db.image.groupBy({by:['workerId'],where:{createdAt:{gte:since}},_count:true}),
     Promise.all(workers.map(w=>db.image.findFirst({where:{workerId:w.id},orderBy:{createdAt:'desc'},select:{id:true,englishDescription:true,latencyMs:true,createdAt:true}}))),
   ]);
-  return workers.map((worker,i)=>({...workerView(worker),
+  const registered=workers.map((worker,i)=>({...workerView(worker),registered:true,
     online:!!worker.lastHeartbeat && Date.now()-worker.lastHeartbeat.getTime()<90_000,
     currentJob:jobs.find(job=>job.id===worker.currentJobId)||null,
     imagesLast24Hours:recentCounts.find(row=>row.workerId===worker.id)?._count||0,
     lastImage:lastImages[i]?imageView(lastImages[i]):null,
   }));
+  // Show the full team roster without creating fake registrations or heartbeats.
+  const expected=(process.env.MONITORING_WORKER_IDS||'1.1,1.2,1.3,1.4,1.5')
+    .split(',').map(id=>id.trim()).filter(id=>/^\d+\.\d+$/.test(id));
+  const ids=new Set([...expected,...workers.map(w=>w.id)]);
+  return [...ids].sort((a,b)=>a.localeCompare(b,'en',{numeric:true})).map(id=>
+    registered.find(w=>w.id===id)||{
+      id,registered:false,status:'not_registered',online:false,lastHeartbeat:null,
+      memberId:null,modelId:null,model:null,modelAvailable:false,
+      completedJobs:0,failedJobs:0,averageLatencyMs:0,currentJobId:null,
+      currentJob:null,imagesLast24Hours:0,lastImage:null,
+    });
 }
 
 async function enqueue(description:string,source:'search'|'background') {
@@ -150,6 +161,8 @@ const staleRemoteTimer=setInterval(async()=>{
       }
       await db.aiWorker.update({where:{id:worker.id},data:{status:'offline',currentJobId:null}});
     }
+    const recovered=await recoverOrphanedLocalJobs(db,queue);
+    if(recovered.length) console.log(JSON.stringify({level:'info',message:'Recovered abandoned local jobs',jobIds:recovered}));
     const orphaned=await db.generationJob.findMany({where:{status:'queued',updatedAt:{lt:new Date(Date.now()-60_000)}},take:20,select:{id:true}});
     for(const job of orphaned) await recoverQueuedJob(db,queue,job.id);
   } catch(error) { console.error(JSON.stringify({level:'error',message:'stale remote worker check failed',error:String(error)})); }

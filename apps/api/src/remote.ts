@@ -1,7 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { createHmac, timingSafeEqual, randomUUID } from 'node:crypto';
-import { mkdir, writeFile, link, unlink } from 'node:fs/promises';
+import { mkdir, writeFile, link, unlink, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 import { filename, promptFor } from '@bt03/shared';
@@ -28,6 +28,33 @@ export async function recoverQueuedJob(db:PrismaClient,queue:Queue,jobId:string)
   const recoveryId=`${jobId}-recovery-${randomUUID().slice(0,8)}`;
   await queue.add('generate',{dbJobId:jobId},{jobId:recoveryId,priority:job.source==='search'?1:10,attempts:3,backoff:{type:'exponential',delay:5000},removeOnComplete:{age:86400},removeOnFail:{age:604800}});
   recoveryAttempts.set(jobId,{id:recoveryId,at:Date.now()});
+}
+
+// A crash can leave the database generating after BullMQ has discarded the job.
+// Protect both current ownership and active retries (whose queue IDs have suffixes).
+export async function recoverOrphanedLocalJobs(db:PrismaClient,queue:Queue) {
+  const workers=await db.aiWorker.findMany({where:{NOT:{modelId:{startsWith:'remote-'}}}});
+  const jobs=await db.generationJob.findMany({where:{workerId:{in:workers.map(worker=>worker.id)},status:{in:['generating','saving']},updatedAt:{lt:new Date(Date.now()-120_000)}}});
+  if(!jobs.length) return [];
+  const active=new Set((await queue.getJobs(['active'])).map(job=>job.data.dbJobId));
+  const recovered:string[]=[];
+  for(const job of jobs) {
+    if(workers.some(worker=>worker.currentJobId===job.id)||active.has(job.id)) continue;
+    const name=filename(job.normalizedSearch,job.workerId!,job.id.slice(0,8));
+    const image=await db.image.findUnique({where:{storagePath:name}});
+    // A committed image is never moved or overwritten by recovery.
+    if(image) {
+      await db.generationJob.updateMany({where:{id:job.id,status:{in:['generating','saving']},workerId:job.workerId},data:{status:'failed',error:'Recovery requires review: image already recorded'}});
+      continue;
+    }
+    const root=path.resolve(process.env.IMAGE_ROOT||'storage/images');
+    await mkdir(path.join(root,'.recovered'),{recursive:true});
+    try {await rename(path.join(root,name),path.join(root,'.recovered',`${job.id}-${randomUUID()}.png`));}
+    catch(error) {if((error as NodeJS.ErrnoException).code!=='ENOENT') throw error;}
+    const changed=await db.generationJob.updateMany({where:{id:job.id,status:{in:['generating','saving']},workerId:job.workerId},data:{status:'queued',workerId:null,error:'Recovered abandoned local job'}});
+    if(changed.count) {await recoverQueuedJob(db,queue,job.id);recovered.push(job.id);}
+  }
+  return recovered;
 }
 
 export function remoteRoutes(db:PrismaClient,queue:Queue) {

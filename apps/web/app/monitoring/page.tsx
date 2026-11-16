@@ -2,7 +2,7 @@
 import {useEffect,useState} from 'react';
 type CurrentJob={id:string;normalizedSearch:string;status:string;source:string;updatedAt:string};
 type LastImage={id:string;englishDescription:string;latencyMs:number;createdAt:string;url:string};
-type Worker={id:string;status:string;online:boolean;completedJobs:number;failedJobs:number;averageLatencyMs:number;lastHeartbeat:string|null;modelAvailable:boolean;currentJob:CurrentJob|null;imagesLast24Hours:number;lastImage:LastImage|null};
+type Worker={id:string;registered:boolean;status:string;online:boolean;completedJobs:number;failedJobs:number;averageLatencyMs:number;lastHeartbeat:string|null;modelAvailable:boolean;currentJob:CurrentJob|null;imagesLast24Hours:number;lastImage:LastImage|null};
 type Stats={images:number;completed:number;failed:number;queue:Record<string,number>;workers:Worker[];generation:{queued:number;generating:number;saving:number;unassignedActive:number};monitoring:{beszelUrl:string};capturedAt:string};
 type Health={status:string;database:string;redis:string};
 const statusLabels:Record<string,string>={idle:'Đang rảnh',generating:'Đang sinh ảnh',saving:'Đang lưu ảnh',offline:'Mất kết nối',unavailable:'Chưa sẵn sàng'};
@@ -40,18 +40,19 @@ export default function Monitoring(){
       {error&&<p role="alert" className="mt-6 text-vermillion">{error} Số liệu bên dưới có thể đã cũ.</p>}
       <section className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-7" aria-label="Thống kê hệ thống">{cards.map(([label,value])=><div key={label} className="bg-white border border-[#d9ceb9] p-4"><p className="text-xs uppercase tracking-widest text-ink/60">{label}</p><p className="text-2xl mt-3">{value}</p></div>)}</section>
       {!!stats?.generation?.unassignedActive&&<p role="alert" className="mt-5 border-l-4 border-vermillion bg-white p-4 text-sm">Có {stats.generation.unassignedActive} job ghi đang chạy nhưng không gắn với currentJobId của worker nào. Cần kiểm tra đối soát hàng đợi; đây không phải job đang được một máy xác nhận xử lý.</p>}
-      <h2 className="text-3xl mt-10 mb-5">Các worker AI</h2>
+      <h2 className="text-3xl mt-10 mb-2">Các worker AI · {workers.length} máy</h2>
+      <p className="text-sm text-ink/60 mb-5">Đã đăng ký: {workers.filter(w=>w.registered).length}/{workers.length}. Máy chưa kết nối lần đầu vẫn được hiển thị trong danh sách nhóm.</p>
       <section className="grid md:grid-cols-2 gap-5">{workers.map(worker=>{
         const online=isOnline(worker),job=worker.currentJob;
         const elapsed=job?Math.max(0,Math.floor((now-new Date(job.updatedAt).getTime())/1000)):0;
         return <article key={worker.id} className="bg-white border border-[#d9ceb9] p-6">
-          <div className="flex justify-between gap-3"><h3 className="text-2xl">Worker {worker.id}</h3><span className={`text-sm ${online?'text-emerald-700':'text-ink/50'}`}>{online?'● Online':'○ Offline'}</span></div>
-          <p className="text-vermillion mt-2">{online?statusLabel(worker.status):'Mất kết nối'}</p>
+          <div className="flex justify-between gap-3"><h3 className="text-2xl">Worker {worker.id}</h3><span className={`text-sm ${online?'text-emerald-700':'text-ink/50'}`}>{!worker.registered?'○ Chưa đăng ký':online?'● Online':'○ Offline'}</span></div>
+          <p className="text-vermillion mt-2">{!worker.registered?'Chưa kết nối lần đầu':online?statusLabel(worker.status):'Mất kết nối'}</p>
           <dl className="grid grid-cols-2 gap-3 mt-5 text-sm"><div><dt className="text-ink/60">Ảnh đã sinh</dt><dd className="text-2xl">{worker.completedJobs}</dd></div><div><dt className="text-ink/60">Ảnh trong 24 giờ</dt><dd className="text-2xl">{worker.imagesLast24Hours??0}</dd></div><div><dt className="text-ink/60">Lượt xử lý lỗi</dt><dd>{worker.failedJobs}</dd></div><div><dt className="text-ink/60">Thời gian trung bình</dt><dd>{(worker.averageLatencyMs/1000).toFixed(1)} giây</dd></div></dl>
           <div className="bg-[#f5f0e4] p-4 mt-5"><p className="text-xs uppercase tracking-widest">Job hiện tại</p>{job?<><p className="mt-2 font-medium break-words">{job.normalizedSearch}</p><p className="text-sm mt-2">{job.source==='search'?'Yêu cầu người dùng':'Sinh ảnh nền'} · {statusLabel(job.status)}</p><p className="text-sm mt-1">Đã ở trạng thái này: {elapsed}s{!online?' · máy đã mất heartbeat':''}</p><p className="text-xs text-ink/60 mt-2 break-all">{job.id}</p></>:<p className="text-sm text-ink/60 mt-2">{online?'Chờ nhận việc mới.':'Không có job đang được máy xác nhận.'}</p>}</div>
           <p className="text-xs text-ink/60 mt-4">Heartbeat: {dateLabel(worker.lastHeartbeat)}</p>
           {worker.lastImage&&<div className="border-t border-[#d9ceb9] mt-4 pt-4 text-sm"><p className="text-xs text-ink/60">Ảnh hoàn tất gần nhất</p><a href={worker.lastImage.url} target="_blank" rel="noopener noreferrer" className="underline block mt-1 break-words">{worker.lastImage.englishDescription}</a><p className="text-xs text-ink/60 mt-1">{dateLabel(worker.lastImage.createdAt)} · {(worker.lastImage.latencyMs/1000).toFixed(1)}s</p></div>}
-          {!worker.modelAvailable&&<p className="text-xs text-vermillion mt-3">Model chưa sẵn sàng.</p>}
+          {!worker.registered?<p className="text-xs text-ink/60 mt-3">Chưa có dữ liệu từ máy này. Cấu hình đúng WORKER_ID={worker.id}, token riêng và địa chỉ API trên máy thành viên; thẻ này tự cập nhật khi kết nối thành công.</p>:!worker.modelAvailable&&<p className="text-xs text-vermillion mt-3">Model chưa sẵn sàng.</p>}
         </article>;
       })}</section>
       <p className="text-xs text-ink/60 mt-6">Thời gian chạy không phải phần trăm hoàn thành. Worker v2/v3 chưa gửi số bước diffusion, nên trang không suy đoán % tiến độ. Chỉ số job lấy từ PostgreSQL; queue BullMQ riêng có {stats?.queue?.active??0} job active.</p>

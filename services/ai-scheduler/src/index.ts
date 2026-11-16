@@ -14,6 +14,7 @@ const settings=['beside a river','under cherry blossoms','near a shrine','at a m
 const palettes=['in indigo and gold','in vermilion and cream','in teal and orange','in blue and white','in emerald and ochre','in violet and silver','in crimson and black','in sepia and gold'];
 const seasons=['in spring','in summer','in autumn','in winter'];
 const combinations=words.length*(words.length-1)*settings.length*palettes.length*seasons.length;
+let ticking=false;
 function composition(index:number):string {
   const edition=Math.floor(index/combinations)+1;
   let value=index%combinations;
@@ -29,8 +30,13 @@ async function tick(){
   const state=await db.schedulerState.findUnique({where:{id:1}});
   if(state?.paused) return;
   const active=await db.generationJob.count({where:{status:{in:['queued','generating','saving']}}});
-  if(active>=Number(process.env.MAX_BACKGROUND_QUEUE||3)) return;
-  for(let n=0;n<20;n++){
+  const online=await db.aiWorker.count({where:{status:{in:['idle','generating']},lastHeartbeat:{gte:new Date(Date.now()-90_000)},model:{installed:true}}});
+  // Keep one spare job so every connected worker can claim work immediately.
+  const configured=Number(process.env.MAX_BACKGROUND_QUEUE||3);
+  const target=Math.max(Number.isFinite(configured)?configured:3,online+1);
+  for(let slot=active;slot<target;slot++) {
+   let created=false;
+   for(let n=0;n<20;n++){
     const description=composition(Number(await redis.incr('bt03:scheduler:composition-cursor'))-1);
     const normalized=normalizeQuery(description);
     const result=await db.$transaction(async tx=>{
@@ -44,11 +50,21 @@ async function tick(){
     if(result){
       await queue.add('generate',{dbJobId:result.id},{jobId:result.id,priority:10,attempts:3,backoff:{type:'exponential',delay:5000},removeOnComplete:{age:86400},removeOnFail:{age:604800}});
       console.log(JSON.stringify({level:'info',message:'background job queued',description,jobId:result.id}));
+      created=true;
       break;
     }
+   }
+   if(!created) break;
   }
 }
-const timer=setInterval(()=>void tick().catch(error=>console.error(JSON.stringify({level:'error',message:'scheduler tick failed',error:String(error)}))),10000);
-void tick();
+async function runTick(){
+  if(ticking) return;
+  ticking=true;
+  try {await tick();}
+  catch(error){console.error(JSON.stringify({level:'error',message:'scheduler tick failed',error:String(error)}));}
+  finally {ticking=false;}
+}
+const timer=setInterval(()=>void runTick(),10000);
+void runTick();
 async function shutdown(){clearInterval(timer);await queue.close();await redis.quit();await db.$disconnect();}
 process.on('SIGTERM',()=>void shutdown());process.on('SIGINT',()=>void shutdown());

@@ -1,4 +1,4 @@
-import { Worker, Job, Queue } from 'bullmq';
+import { Worker, Job } from 'bullmq';
 import IORedis from 'ioredis';
 import { PrismaClient } from '@prisma/client';
 import { spawn } from 'node:child_process';
@@ -92,13 +92,9 @@ async function processJob(job:Job<{dbJobId:string}>) {
   } finally { clearInterval(renew);await redis.eval(releaseScript,1,lockKey,token); }
 }
 async function main() {
-  const queue=new Queue('bt03-generation',{connection:redis});
-  for(const stale of await db.generationJob.findMany({where:{status:{in:['generating','saving']},workerId:id}})) {
-    const queued=await queue.getJob(stale.id);
-    const state=queued ? await queued.getState() : 'unknown';
-    if(state==='failed'||state==='unknown') await db.generationJob.update({where:{id:stale.id},data:{status:'failed',error:'Worker stopped before completion'}});
-  }
-  await queue.close();
+  // This new process has no running adapter. Release ownership from its previous
+  // process; API reconciliation will safely requeue jobs after BullMQ settles.
+  await db.aiWorker.update({where:{id},data:{currentJobId:null,modelLoadState:'unloaded',status:enabled&&checkpoint?'idle':'unavailable'}});
   await heartbeat(enabled&&checkpoint?'idle':'unavailable');
   const timer=setInterval(()=>void heartbeat(enabled&&checkpoint?'idle':'unavailable').catch(e=>log('error','heartbeat failed',{error:String(e)})),10000);
   if (!enabled||!checkpoint) { log('warn','worker unavailable: configure distinct checkpoint and enable it'); return; }

@@ -7,6 +7,8 @@ Có hai nguồn số liệu:
 
 Không suy đoán % diffusion từ thời gian chạy. Worker v2/v3 chưa gửi số bước thực tế. Tên máy trong Beszel nên dùng `db1 / worker 1.1`, `worker 1.2`, `worker 1.3`, `worker 1.5` để đối chiếu với trang ứng dụng.
 
+Trang `/monitoring` hiển thị đủ danh sách nhóm `1.1` đến `1.5`, sắp theo ID. Máy chưa có bản ghi đăng ký được ghi rõ `Chưa kết nối lần đầu`, không tạo heartbeat hoặc thông số máy giả. Có thể đổi danh sách bằng `MONITORING_WORKER_IDS` trong `.env` của API; các worker đăng ký thêm vẫn được hiển thị. Beszel chỉ có biểu đồ sau khi agent của từng máy kết nối, không tự có số liệu chỉ vì có thẻ trong trang giám sát.
+
 ## Server db1
 
 ```bash
@@ -83,3 +85,9 @@ Hai stack Beszel có restart policy riêng. Sau khi cài, Docker khởi động 
 - https://beszel.dev/guide/agent-installation
 - https://beszel.dev/guide/wifi
 - https://beszel.dev/guide/security
+
+## Tự sinh ảnh và phục hồi job
+
+Scheduler kiểm tra mỗi 10 giây và tạo đủ job cho số worker online trong 90 giây gần nhất, cộng một job dự phòng. `MAX_BACKGROUND_QUEUE` là mức tối thiểu. Worker remote đang kết nối tự nhận job mới qua API; không cần tải lại model. Nếu đã bấm tạm dừng scheduler, cần bấm tiếp tục trên trang giám sát.
+
+API kiểm tra mỗi 30 giây các job local bị bỏ dở trên 2 phút, chỉ phục hồi khi không còn worker sở hữu và BullMQ không đang xử lý. PNG chưa ghi database được giữ trong `storage/images/.recovered/` trước khi chạy lại. Khi khởi động, worker local giải phóng quyền sở hữu của tiến trình cũ. Job và ảnh đã ghi database được giữ để kiểm tra nếu phát hiện trạng thái bất nhất.
